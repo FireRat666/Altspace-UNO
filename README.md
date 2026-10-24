@@ -30,6 +30,31 @@ To add UNO to your Banter space, simply include the `uno.js` script in your HTML
 | `instance` | `demo-uno` | A unique identifier for the game state. Use different instance IDs if you want multiple independent games in the same space. |
 | `debug` | `false` | Enables debug logging in the console if set to `true`. |
 
+## SideQuest / Altspace Creator SDK (Snippet)
+
+In a SideQuest/Altspace Creator SDK world, add an empty GameObject at the origin, click **Add Component > BS > Snippet** and type `uno`. Or paste it into `Assets/WebRoot/index.html` between the snippet section comments:
+
+```html
+<!-- snippet section -->
+<bs-snippet name="uno" title="UNO"
+  description="Synced multiplayer UNO table."
+  script="https://uno.firer.at/snippet.js"
+  room=""
+  position="0 0 3"
+  rotation="0 0 0"
+  debug="false">
+  <bs-gizmo type="position" attribute="position"/>
+  <bs-gizmo type="plane" attribute="position" size="3.2 3.2" rotation="90 0 0"/>
+</bs-snippet>
+<!-- end snippet section -->
+```
+
+- Settings are the same as the script attributes above. `position` and `rotation` are Unity world values.
+- Each placement is its own game. Its sync id is `room`, or the placement's own id when `room` is empty. Give placements the same `room` to share one game.
+- An empty setting uses the game's default.
+- The Scene-view gizmo shows the table footprint.
+- Unity reads the snippet section as XML: quote every attribute, close every element, and write `&` as `&amp;`.
+
 ## Example `index.html`
 
 ```html
