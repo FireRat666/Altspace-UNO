@@ -1,38 +1,20 @@
-# Banter UNO!
+# UNO
 
-A fully functional UNO game for Banter spaces.
+A synced multiplayer UNO table for 2 to 10 players. Made for **SideQuest / AltspaceVR** worlds, and it also works in **Banter**.
+
+There is no server: players stay in sync through the space's shared state, and the game is plain static files served from <https://uno.firer.at>.
+
+To try it, open <https://uno.firer.at> in Altspace or Banter.
 
 ## Features
-- Support for 2-10 players.
-- Persistent state management via BanterSpace.
-- Configurable position, rotation, and instance names.
-- Automatic hand management and turn handling.
 
-## How to add to your space
+- Skip, reverse, draw and wild cards
+- Hands and turns handled for you
+- Host migration and disconnect handling
 
-To add UNO to your Banter space, simply include the `uno.js` script in your HTML file. You can configure its placement and behavior using attributes on the `<script>` tag.
+## Add it to an Altspace world (snippet)
 
-### Basic Implementation
-
-```html
-<script src="https://uno.firer.at/uno.js"
-        position="0 0 0"
-        rotation="0 0 0"
-        instance="my-uno-game"></script>
-```
-
-### Script Parameters
-
-| Parameter | Default | Description |
-| :--- | :--- | :--- |
-| `position` | `0 0 2` | The world position where the UNO table will be spawned (X Y Z). |
-| `rotation` | `0 0 0` | The rotation of the UNO table (Euler angles: X Y Z). |
-| `instance` | `demo-uno` | A unique identifier for the game state. Use different instance IDs if you want multiple independent games in the same space. |
-| `debug` | `false` | Enables debug logging in the console if set to `true`. |
-
-## SideQuest / Altspace Creator SDK (Snippet)
-
-In a SideQuest/Altspace Creator SDK world, add an empty GameObject at the origin, click **Add Component > BS > Snippet** and type `uno`. Or paste it into `Assets/WebRoot/index.html` between the snippet section comments:
+In a Creator SDK world, add an empty GameObject at the origin, click **Add Component > BS > Snippet** and type `uno`. Or paste this into `Assets/WebRoot/index.html`, between the snippet section comments:
 
 ```html
 <!-- snippet section -->
@@ -49,44 +31,56 @@ In a SideQuest/Altspace Creator SDK world, add an empty GameObject at the origin
 <!-- end snippet section -->
 ```
 
-- Settings are the same as the script attributes above. `position` and `rotation` are Unity world values.
 - Each placement is its own game. Its sync id is `room`, or the placement's own id when `room` is empty. Give placements the same `room` to share one game.
-- An empty setting uses the game's default.
+- `position` and `rotation` are Unity world values. The other settings are listed under [Settings](#settings). An empty setting uses the default.
 - The Scene-view gizmo shows the table footprint.
 - Unity reads the snippet section as XML: quote every attribute, close every element, and write `&` as `&amp;`.
 
-## Example `index.html`
+## Add it with a script tag
+
+This works in an Altspace world's `Assets/WebRoot/index.html` (outside the snippet section) and in a Banter space's HTML:
 
 ```html
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta property="og:title" content="My Banter Space">
-  </head>
-  <body>
-    <!-- Load UNO Game -->
-    <script src="https://uno.firer.at/uno.js"
-            position="0 0 2"
-            rotation="0 180 0"
-            instance="lobby-uno"></script>
-  </body>
-</html>
+<script src="https://uno.firer.at/uno.js" position="0 0 2" rotation="0 180 0" instance="lobby-uno"></script>
 ```
 
-## Attribution
+For more than one table in a space, give each one its own `instance`:
 
-This UNO game is based on previous works:
-*   **Original "Holograms Against Humanity" (AltspaceVR adaptation):** Derogatory, falkrons, schmidtec
-*   **Ported to Banter:** Shane
-*   **improved, Fixed and ported from A-Frame:** FireRat
+```html
+<script src="https://uno.firer.at/uno.js" instance="table1" position="-4 0 0"></script>
+<script src="https://uno.firer.at/uno.js" instance="table2" position="4 0 0"></script>
+```
 
-The sound assets used in this project are derived from the original "Holograms Against Humanity" project.
+## Settings
 
-## How it works
+| Setting | Also accepted | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `instance` |  | `demo-uno` | Sync id. Tables with the same id share one game. In a snippet, use `room` instead. |
+| `position` |  | `0 0 0` | Table position (x y z). |
+| `rotation` |  | `0 0 0` | Table rotation in degrees (x y z). |
+| `debug` |  | `false` | `true` logs extra detail to the console. |
 
-The game uses the Banter SDK to create game objects, UI elements, and manage network state.
+## How to play
 
-1. **Initialization**: The script reads parameters from its own tag or URL search params.
-2. **Environment**: It builds the UNO table, card deck, and player areas.
-3. **State**: Game state is synchronized across all players using `BS.BanterScene` state events.
-4. **Turns**: Players take turns playing cards or drawing from the deck. The game automatically handles special cards like Skip, Reverse, and Wild cards.
+1. Click **JOIN GAME**.
+2. On your turn, play a card that matches the top card's colour or symbol, or draw.
+3. First to empty their hand wins.
+
+## Files
+
+- `uno.js`: the game.
+- `Assets/`: sounds.
+- `snippet.js`, `snippet.html`: the Creator SDK snippet and its definition.
+- `index.html`: a test page with a floor and the game.
+
+## Credits
+
+- Original Holograms Against Humanity for AltspaceVR: Derogatory, falkrons, schmidtec
+- Ported to Banter: Shane
+- Improved, fixed and ported from A-Frame: FireRat
+
+The sounds come from the original Holograms Against Humanity project.
+
+## License
+
+GPL-3.0. See [LICENSE](LICENSE).
