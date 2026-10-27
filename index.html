@@ -103,7 +103,21 @@
       <script src="/uno.js" 
               rotation="0 180 0" debug="true" position="0 0 2" instance="example1"></script>
       <script>
+        // A big sphere round the space with a night sky (stars and distant hills) on its inside.
+        // Called from createFloor, so it is made once, at the same time as the floor.
+        async function createSky() {
+            const sky = await new BS.GameObject("BanterSky").Async();
+            const radius = 300;
+            await sky.AddComponent(new BS.BanterGeometry(BS.GeometryType.SphereGeometry, null, 1, 1, 1, 64, 32, 1, radius, 24, 0, 3.141593, 0, 6.283185, 8, false, radius, radius));
+            const texUrl = "https://cdn.aframe.io/a-painter/images/sky.jpg";
+            await sky.AddComponent(new BS.BanterMaterial("Unlit/Texture", texUrl, new BS.Vector4(1, 1, 1, 1), BS.MaterialSide.Double, true));
+            let transform = sky.GetComponent(BS.ComponentType.Transform);
+            if (!transform) transform = await sky.AddComponent(new BS.Transform());
+            transform.localPosition = new BS.Vector3(0, 0, 0);
+        }
+
         async function createFloor() {
+            createSky();
             const floor = await new BS.GameObject("BanterFloor").Async();
             const width = 30; const height = 0.1; const depth = 30;
 
