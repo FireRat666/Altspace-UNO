@@ -575,7 +575,7 @@
 
             const creditLabel = panel.CreateLabel(undefined, rootEl);
             await creditLabel.Async();
-            creditLabel.text = "UNO! is a registered trademark of Mattel, Inc.\nAdapted for Banter by FireRat\nBeta v0.3.2";
+            creditLabel.text = "UNO! is a registered trademark of Mattel, Inc.\nAdapted for Altspace & Banter by FireRat\nBeta v0.3.2";
             creditLabel.SetStyles({ backgroundColor: 'rgba(0, 0, 0, 0)', color: '#aaaaaa', fontSize: '25px', marginTop: '20px', textAlign: 'center' });
             this.ui.creditLabel = creditLabel;
 
