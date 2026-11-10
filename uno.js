@@ -77,6 +77,73 @@
         return f * f;
     }
 
+    // --- Switching off when far away ---
+    // Beyond `cull-distance` metres the game is shrunk to nothing and stops updating its panels, and
+    // it grows back when the player returns. It isn't deleted and rebuilt: the app doesn't free
+    // everything a deleted UI panel used, so rebuilding leaked memory each time. (SetActive isn't
+    // used either: BanterUI panels lose their contents when switched off and on.) The game logic and
+    // the host duties keep running meanwhile.
+    function distanceSwitch(game) {
+        const head = headTracker();
+        const c = game.parseVector3(game.params.position);
+        const centre = { x: c.x, y: c.y + 1, z: c.z }; // table height
+        setInterval(() => {
+            const far = game.params.cullDistance;
+            const p = head.markerPos || head.posePos;
+            if (!(far > 0) || !p || !game.root) return;
+            const d = Math.hypot(p.x - centre.x, p.y - centre.y, p.z - centre.z);
+            try {
+                if (!game.culled && d > far + 1) {
+                    game.culled = true;
+                    game.root.transform.localScale = new BS.Vector3(0, 0, 0);
+                    game.log(`Switched off (${d.toFixed(1)} m away).`);
+                } else if (game.culled && d < far) {
+                    game.culled = false;
+                    game.root.transform.localScale = new BS.Vector3(1, 1, 1);
+                    game.log(`Switched back on (${d.toFixed(1)} m away).`);
+                    game.updateUI();
+                }
+            } catch (err) {
+                console.warn("Distance switch failed", err);
+            }
+        }, 1000);
+    }
+
+    // --- Times from other players ---
+    // Timestamps in the game state come from the clock of whoever wrote them, and players' clocks can
+    // be minutes or hours apart. So a stored timestamp is never compared with this device's clock:
+    // it's treated as a marker, and its age is counted from when this device first saw it.
+    const firstSeen = new Map();
+    function ageOf(ts) {
+        if (!firstSeen.has(ts)) firstSeen.set(ts, Date.now());
+        return Date.now() - firstSeen.get(ts);
+    }
+
+    // --- Host ---
+    // One person, the host, runs the timers, kicks and automatic steps. When the host leaves the
+    // space (or none is set), the next host is the connected player in the game with the lowest uid,
+    // or the lowest uid in the space when nobody is playing. Everyone works this out the same way, so
+    // only that person takes over and saves it. The host has to be gone for HOST_GRACE_MS first, and
+    // nobody takes over in their first HOST_GRACE_MS after loading, while the user list fills in.
+    const HOST_GRACE_MS = 5000;
+    function hostFor(game) {
+        const users = scene.users || {};
+        const state = game.gameState;
+        const host = state && state.currentHostUid;
+        const now = Date.now();
+        if (host && users[host]) {
+            game._hostGone = null;
+            return host;
+        }
+        if (host) {
+            if (!game._hostGone || game._hostGone.uid !== host) game._hostGone = { uid: host, since: now };
+            const loadedAt = game.readyTime || now;
+            if (now - game._hostGone.since < HOST_GRACE_MS || now - loadedAt < HOST_GRACE_MS) return host;
+        }
+        const players = Object.keys((state && state.players) || {}).filter(uid => users[uid]).sort();
+        return players[0] || Object.keys(users).sort()[0] || null;
+    }
+
     class UnoGame {
         constructor() {
             this.gameState = null;
@@ -107,6 +174,7 @@
                 volume: parseFloat(getParam("sound-volume", "0.4")), // 0-1; 0 = no sounds
                 soundNear: parseFloat(getParam("sound-near", "2.5")), // metres: full volume within this
                 soundFar: parseFloat(getParam("sound-far", "10")), // metres: silent from here
+                cullDistance: parseFloat(getParam("cull-distance", "20")), // metres: switched off beyond this (0 = never)
                 rotation: getParam("rotation", "0 0 0"),
                 instance: getParam("instance", "demo-uno"), // Unique instance for Uno
                 debug: getParam("debug", "false") === "true"
@@ -114,6 +182,7 @@
             if (isNaN(this.params.volume)) this.params.volume = 0.4;
             if (isNaN(this.params.soundNear)) this.params.soundNear = 2.5;
             if (isNaN(this.params.soundFar)) this.params.soundFar = 10;
+            if (isNaN(this.params.cullDistance)) this.params.cullDistance = 20;
             this.stateKey = this.params.instance; // Changed STATE_KEY to this.stateKey
         }
 
@@ -185,6 +254,8 @@
             this.sync();
 
             setInterval(() => this.tick(), 1000); // Renamed tickTimers to tick
+            this.readyTime = Date.now();
+            distanceSwitch(this);
         }
 
         async buildEnvironment() {
@@ -885,11 +956,7 @@
         // Helper to determine if local user is the host
         isHost() {
             if (!scene || !scene.localUser) return false;
-            if (!this.gameState || !this.gameState.currentHostUid) {
-                const uids = Object.keys(scene.users || {}).sort();
-                return uids.length > 0 && uids[0] === scene.localUser.uid;
-            }
-            return this.gameState.currentHostUid === scene.localUser.uid;
+            return hostFor(this) === scene.localUser.uid;
         }
 
         // BanterSpace state changed handler
@@ -948,7 +1015,7 @@
                 const oldSound = this.gameState ? this.gameState.lastSound : null;
                 if (newGameState.lastSound && (!oldSound || newGameState.lastSound.ts !== oldSound.ts)) {
                     // Only play sounds triggered after we joined
-                    if (newGameState.lastSound.ts > this.joinTime) {
+                    if (this.gameState) {
                         this.playLocalSound(newGameState.lastSound.file);
                     }
                 }
@@ -1811,6 +1878,7 @@
         }
 
         updateUI() {
+            if (this.culled) return;
             if (!this.gameState || !this.gameState.players || !scene.localUser) return;
             const players = this.gameState.players;
             const localUid = scene.localUser.uid;
@@ -2100,6 +2168,7 @@
         }
 
         updateTimerDisplay() {
+            if (this.culled) return;
             if (!this.gameState || !this.gameState.players || !scene.localUser) return;
             const players = this.gameState.players;
 
@@ -2109,10 +2178,10 @@
                 const playerAtPos = Object.values(players).find(p => p.position === i);
 
                 if (playerAtPos && this.gameState.gameStarted && this.gameState.currentPlayerId === playerAtPos.id && this.gameState.turnStartTime) {
-                    const timeLeft = Math.max(0, Math.ceil((this.gameState.turnStartTime + this.gameState.turnDuration - Date.now()) / 1000));
+                    const timeLeft = Math.max(0, Math.ceil((this.gameState.turnDuration - ageOf(this.gameState.turnStartTime)) / 1000));
                     slice.timerText.text = `(${timeLeft}s)`;
                 } else if (playerAtPos && playerAtPos.isDisconnected && playerAtPos.disconnectTime) {
-                    const timeLeft = Math.max(0, Math.ceil((playerAtPos.disconnectTime + DISCONNECT_TIMEOUT_MS - Date.now()) / 1000));
+                    const timeLeft = Math.max(0, Math.ceil((DISCONNECT_TIMEOUT_MS - ageOf(playerAtPos.disconnectTime)) / 1000));
                     slice.timerText.text = `(Disc: ${timeLeft}s)`;
                 } else {
                     slice.timerText.text = "";
@@ -2121,7 +2190,7 @@
         }
 
         tick() { // Renamed from tickTimers
-            if (!this.gameState || !this.ui.centralPanel) return;
+            if (!this.gameState || !scene.localUser) return;
 
             // Update only the timer display every second
             this.updateTimerDisplay();
@@ -2133,19 +2202,15 @@
         }
 
         driveHostLogic() {
-            // Assign host if none is present
-            if (!this.gameState.currentHostUid || !scene.users[this.gameState.currentHostUid]) {
-                const allUsers = Object.keys(scene.users || {}).sort();
-                if (allUsers.length > 0) {
-                    const lowestUid = allUsers[0];
-                    if (scene.users[lowestUid]) { // Ensure user still exists
-                        this.updateState({ currentHostUid: lowestUid });
-                    }
-                }
-            }
-
             const now = Date.now();
             let stateChanged = false;
+
+            // We're running this, so we're the host (see hostFor). Save it if the old host left.
+            if (this.gameState.currentHostUid !== scene.localUser.uid) {
+                this.log(`Taking over as host from ${this.gameState.currentHostUid || 'nobody'}.`);
+                this.gameState.currentHostUid = scene.localUser.uid;
+                stateChanged = true;
+            }
 
             // Handle disconnected players and automatic timeouts
             for (const userId in this.gameState.players) {
@@ -2164,7 +2229,7 @@
                     player.isDisconnected = true;
                     player.disconnectTime = now;
                     stateChanged = true;
-                } else if (player.isDisconnected && player.disconnectTime && (now - player.disconnectTime >= DISCONNECT_TIMEOUT_MS)) {
+                } else if (player.isDisconnected && player.disconnectTime && (ageOf(player.disconnectTime) >= DISCONNECT_TIMEOUT_MS)) {
                     // Player's grace period expired
                     this.log(`Player ${userId} grace period expired. Removing.`);
                     const wasInitiallyDisconnected = this.playersInitiallyLoaded.hasOwnProperty(userId) && this.playersInitiallyLoaded[userId];
@@ -2173,19 +2238,19 @@
                 }
             }
 
-            if (stateChanged) {
-                this.updateState({ players: this.gameState.players });
-            }
-
             // Turn timer logic
             if (this.gameState.gameStarted && this.gameState.currentPlayerId && this.gameState.turnStartTime) {
-                const timeElapsed = now - this.gameState.turnStartTime;
+                const timeElapsed = ageOf(this.gameState.turnStartTime);
 
                 if (timeElapsed >= this.gameState.turnDuration) {
                     this.log(`Player ${this.gameState.currentPlayerId} timed out!`);
                     this.applyGameLogic(this.gameState, "timeout-player", this.gameState.currentPlayerId, "System", { timedOutPlayerId: this.gameState.currentPlayerId, playSound: true });
                     stateChanged = true;
                 }
+            }
+
+            if (stateChanged) {
+                this.updateState({});
             }
         }
     }

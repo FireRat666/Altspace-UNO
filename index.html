@@ -97,7 +97,7 @@
 
       <section class="info-block">
         <h2>Features</h2>
-        <ul><li>Skip, reverse, draw and wild cards</li><li>Hands and turns handled for you</li><li>Host migration and disconnect handling</li></ul>
+        <ul><li>Skip, reverse, draw and wild cards</li><li>Hands and turns handled for you</li><li>Disconnect handling</li><li>If the host leaves, another player takes over as host after a few seconds, so timers and turns keep going</li><li>Switches itself off when you are far from the table, and back on when you return</li></ul>
       </section>
 
       <section class="info-block">
@@ -132,6 +132,7 @@
         room=""
         position="0 -0.4 3"
         rotation="0 0 0"
+        cull-distance="20"
         sound-volume="0.4"
         sound-near="2.5"
         sound-far="10"
